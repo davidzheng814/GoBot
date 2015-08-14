@@ -3,6 +3,7 @@ import theano
 import theano.tensor as T
 import lasagne
 import sys, os
+import time
 
 batch_size = 128
 num_epochs = 10
@@ -15,12 +16,27 @@ data_folder = '/Users/dzd123/Documents/Summer 2015/GoBot/training_data/'
 num_filters_list = [64, 64, 64, 64, 48, 48, 32, 32]
 filter_size_list = [7, 7, 5, 5, 5, 5, 5, 5]
 
-def load_dataset():
+train_val_test_ratio = (.88, .04, .08)
+
+# batch_size = 128
+# num_epochs = 5
+# num_channels = 8
+# board_size = 19
+# data_folder = '/Users/dzd123/Documents/Summer 2015/GoBot/training_data/'
+# num_filters_list = [4, 4, 4]
+# filter_size_list = [5, 5, 5]
+# train_val_test_ratio = (.88, .04, .08)
+
+def load_dataset(max_datasets=None):
     X_train, y_train, X_val, y_val, X_test, y_test = (None, None, None, None, None, None)
+
     files = [filename for filename in os.listdir(data_folder) if filename.endswith('.npz')]
 
-    num_test = int(.08*len(files))
-    num_val = int(.04*len(files))
+    if max_datasets:
+        files = files[:max_datasets]
+
+    num_test = int(train_val_test_ratio[2]*len(files))
+    num_val = int(train_val_test_ratio[1]*len(files))
 
     #numpy arrays of int8 type
     for i, filename in enumerate(files):
@@ -29,8 +45,8 @@ def load_dataset():
             X = data['inputs']
             y = data['targets']
 
-            X = X.astype('float32')
-            y = y.astype('int8')
+            X = X.astype(theano.config.floatX)
+            y = y.astype(np.uint8)
 
             if i == 0:
                 X_test = X
@@ -51,7 +67,6 @@ def load_dataset():
                 X_train = np.append(X_train, X, axis=0)
                 y_train = np.append(y_train, y, axis=0)
 
-
     return X_train, y_train, X_val, y_val, X_test, y_test
 
 def build_network(input_var):
@@ -60,7 +75,7 @@ def build_network(input_var):
 
     for num_filters, filter_size in zip(num_filters_list, filter_size_list):
         network = lasagne.layers.Conv2DLayer(network, num_filters, filter_size, pad='full',
-            non_linearity=lasagne.nonlinearities.rectify,
+            nonlinearity=lasagne.nonlinearities.rectify,
             W=lasagne.init.GlorotUniform())
 
         network = lasagne.layers.DropoutLayer(network, p=0.5)
@@ -89,11 +104,11 @@ def restrict(results, restriction_var):
         Output:
             TensorVariable (batch_size, 361)
     '''
-    restriction_var = T.flatten(restriction_var, outdim=2)
+    flattened = T.flatten(restriction_var, outdim=2)
 
-    results = results*restriction_var
+    results = results*(1. - flattened)
 
-    results_sum = T.sum(axis=1, keepdims=True)
+    results_sum = T.sum(results, axis=1, keepdims=True)
 
     return results/results_sum
 
@@ -120,6 +135,7 @@ def main():
     test_prediction = restrict(test_prediction, restriction_var)
 
     test_loss = lasagne.objectives.categorical_crossentropy(test_prediction, target_var)
+
     test_loss = test_loss.mean()
 
     test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var), dtype=theano.config.floatX)
@@ -130,6 +146,8 @@ def main():
     train_fn = theano.function([input_var, target_var], loss, updates=updates)
 
     val_fn = theano.function([input_var, target_var, restriction_var], [test_loss, test_acc])
+
+    print "Compilation Complete"
 
     print "Start Training..."
 
@@ -166,7 +184,7 @@ def main():
     test_batches = 0
     for batch in iterate_minibatches(X_test, y_test, shuffle=False):
         inputs, targets = batch
-        err, acc = val_fn(inputs, targets)
+        err, acc = val_fn(inputs, targets, inputs[:,6,:,:])
         test_err += err
         test_acc += acc
         test_batches += 1
