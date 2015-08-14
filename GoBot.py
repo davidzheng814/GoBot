@@ -10,17 +10,54 @@ num_epochs = 10
 num_channels = 8
 board_size = 19
 
+data_folder = '/Users/dzd123/Documents/Summer 2015/GoBot/training_data/'
+
+num_filters_list = [64, 64, 64, 64, 48, 48, 32, 32]
+filter_size_list = [7, 7, 5, 5, 5, 5, 5, 5]
+
 def load_dataset():
+    X_train, y_train, X_val, y_val, X_test, y_test = (None, None, None, None, None, None)
+    files = [filename for filename in os.listdir(data_folder) if filename.endswith('.npz')]
+
+    num_test = int(.08*len(files))
+    num_val = int(.04*len(files))
+
     #numpy arrays of int8 type
+    for i, filename in enumerate(files):
+
+        with np.load(data_folder+filename) as data:
+            X = data['inputs']
+            y = data['targets']
+
+            X = X.astype('float32')
+            y = y.astype('int8')
+
+            if i == 0:
+                X_test = X
+                y_test = y
+            elif i < num_test:
+                X_test = np.append(X_test, X, axis=0)
+                y_test = np.append(y_test, y, axis=0)
+            elif i == num_test:
+                X_val = X
+                y_val = y
+            elif i < num_test + num_val:
+                X_val = np.append(X_val, X, axis=0)
+                y_val = np.append(y_val, y, axis=0)
+            elif i == num_test + num_val:
+                X_train = X
+                y_train = y
+            else:
+                X_train = np.append(X_train, X, axis=0)
+                y_train = np.append(y_train, y, axis=0)
+
+
     return X_train, y_train, X_val, y_val, X_test, y_test
 
 def build_network(input_var):
     network = lasagne.layers.InputLayer(shape=(batch_size, num_channels, board_size, board_size), input_var=input_var)
-    network = lasagne.layers.DropoutLayer(network, p=0.2)
+    # network = lasagne.layers.DropoutLayer(network, p=0.2)
 
-
-    num_filters_list = [64, 64, 64, 64, 48, 48, 32, 32]
-    filter_size_list = [7, 7, 5, 5, 5, 5, 5, 5]
     for num_filters, filter_size in zip(num_filters_list, filter_size_list):
         network = lasagne.layers.Conv2DLayer(network, num_filters, filter_size, pad='full',
             non_linearity=lasagne.nonlinearities.rectify,
@@ -139,3 +176,5 @@ def main():
     print "  test accuracy:\t\t{:.2f} %".format(test_acc / test_batches * 100)
 
     np.savez('model.npz', lasagne.layers.get_all_param_values(network))
+
+main()
