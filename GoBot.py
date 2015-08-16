@@ -11,7 +11,7 @@ num_epochs = 10
 num_channels = 8
 board_size = 19
 
-data_folder = '/Users/dzd123/Documents/Summer 2015/GoBot/training_data/'
+data_folder = '/home/ubuntu/'
 
 num_filters_list = [64, 64, 64, 64, 48, 48, 32, 32]
 filter_size_list = [7, 7, 5, 5, 5, 5, 5, 5]
@@ -19,10 +19,10 @@ filter_size_list = [7, 7, 5, 5, 5, 5, 5, 5]
 train_val_test_ratio = (.88, .04, .08)
 
 # batch_size = 128
-# num_epochs = 5
+# num_epochs = 20
 # num_channels = 8
 # board_size = 19
-# data_folder = '/Users/dzd123/Documents/Summer 2015/GoBot/training_data/'
+# data_folder = '/home/ec2-user/'
 # num_filters_list = [4, 4, 4]
 # filter_size_list = [5, 5, 5]
 # train_val_test_ratio = (.88, .04, .08)
@@ -175,6 +175,8 @@ def main():
         print "  validation loss:\t\t{:.6f}".format(val_err / val_batches)
         print "  validation accuracy:\t\t{:.2f} %".format(val_acc / val_batches * 100)
 
+        np.savez('model'+str(epoch)+'.npz', lasagne.layers.get_all_param_values(network))
+
     print "Training Complete"
 
     print "Start testing..."
@@ -192,7 +194,6 @@ def main():
     print "Final results:"
     print "  test loss:\t\t\t{:.6f}".format(test_err / test_batches)
     print "  test accuracy:\t\t{:.2f} %".format(test_acc / test_batches * 100)
-
-    np.savez('model.npz', lasagne.layers.get_all_param_values(network))
+    
 
 main()
