@@ -3,6 +3,8 @@ import theano.tensor as T
 import lasagne
 import numpy as np
 import theano
+import GoBot
+import sys
 
 def pickle(function, filename):
     f = file(filename, 'wb')
@@ -39,3 +41,14 @@ def save_function(network, input_var, restriction_var, output_file):
 
     pickle(function, output_file)
 
+if __name__ == '__main__':
+    input_var = T.tensor4('inputs')
+    network = GoBot.build_network(input_var, 1)
+
+    with np.load(sys.argv[1]) as params:
+        lasagne.layers.set_all_param_values(network, params['arr_0'])
+
+    restriction_var = T.tensor3('restrictions')
+
+    save_function(network, input_var, restriction_var, sys.argv[2])
+    
