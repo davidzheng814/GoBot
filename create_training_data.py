@@ -1,6 +1,7 @@
 import os
 import numpy as np
 from multiprocessing import Process
+import sys
 
 def sgf_to_moves_list(filename):
     f = open(filename, 'r')
@@ -127,6 +128,33 @@ def update_board(board, group_map, groups, empty_groups, illegal, move, player):
             groups[enemy] = None
             empty_groups.append(enemy)
 
+    fill_illegal(board, group_map, groups, illegal, player)
+
+    if len(captured) == 1:
+        x2, y2 = captured[0]
+
+        is_ko = True
+        for x3, y3 in [(x-1, y), (x+1, y), (x, y-1), (x, y+1)]:
+            if x2 == x3 and y2 == y3:
+                continue
+            if not in_bounds(x3, y3):
+                continue
+            if board[y3][x3] == player or board[y3][x3] == -1:
+                is_ko = False
+
+        if is_ko:
+            for x3, y3 in [(x2-1, y2), (x2+1, y2), (x2, y2-1), (x2, y2+1)]:
+                if x2 == x3 and y2 == y3:
+                    continue
+                if not in_bounds(x3, y3):
+                    continue
+                if board[y3][x3] == opponent or board[y3][x3] == -1:
+                    is_ko = False
+
+            if is_ko:
+                illegal[y2][x2] = True
+
+def fill_illegal(board, group_map, groups, illegal, player):
     for x2 in range(19):
         for y2 in range(19):
             if board[y2][x2] != -1:
@@ -153,30 +181,6 @@ def update_board(board, group_map, groups, empty_groups, illegal, move, player):
             if is_illegal:
                 illegal[y2][x2] = True
                 continue
-
-    if len(captured) == 1:
-        x2, y2 = captured[0]
-
-        is_ko = True
-        for x3, y3 in [(x-1, y), (x+1, y), (x, y-1), (x, y+1)]:
-            if x2 == x3 and y2 == y3:
-                continue
-            if not in_bounds(x3, y3):
-                continue
-            if board[y3][x3] == player or board[y3][x3] == -1:
-                is_ko = False
-
-        if is_ko:
-            for x3, y3 in [(x2-1, y2), (x2+1, y2), (x2, y2-1), (x2, y2+1)]:
-                if x2 == x3 and y2 == y3:
-                    continue
-                if not in_bounds(x3, y3):
-                    continue
-                if board[y3][x3] == opponent or board[y3][x3] == -1:
-                    is_ko = False
-
-            if is_ko:
-                illegal[y2][x2] = True
 
 edge_array = [[1 for _ in range(19)] for __ in range(19)]
 
@@ -237,22 +241,25 @@ def sgf_to_numpy(filename):
     targets = [None for _ in range(num_nonpass_moves)]
     ind = 0
     for i, move in enumerate(moves):
-        if move == 'pass':
-            continue
         player = i % 2
+
+        if move == 'pass':
+            illegal = [[False for _ in range(19)] for __ in range(19)]
+            fill_illegal(board, group_map, groups, illegal, player)
+            continue
 
         add_board_to_array(board, group_map, groups, illegal, player, inputs, ind)
 
         add_move_to_array(move, targets, ind)
         illegal = [[False for _ in range(19)] for __ in range(19)]
         update_board(board, group_map, groups, empty_groups, illegal, move, player)
-
+        
         ind += 1
 
     return (np.array(inputs), np.array(targets))
 
-sgf_folder = '/Users/dzd123/Documents/Summer 2015/GoBot/datasets/'
-output_folder = '/Users/dzd123/Documents/Summer 2015/GoBot/training_data/'
+sgf_folder = sys.argv[1]
+output_folder = sys.argv[2]
 
 def read_files(index, files):
     print len(files)
@@ -261,7 +268,13 @@ def read_files(index, files):
         if not result:
             continue
         inputs, targets = result
-        np.savez_compressed(output_folder+filename[:-4], inputs=inputs, targets=targets)
+
+        for i, (inp, target) in enumerate(zip(inputs, targets)):
+                inp = np.reshape(inp, (1, 8, 19, 19))
+                target = np.reshape(target, (1))
+
+                np.savez_compressed(output_folder+filename[:-4]+'_'+str(i), input=inp, target=target)
+                
         if i % 100 == 0:
             print index, i
 
